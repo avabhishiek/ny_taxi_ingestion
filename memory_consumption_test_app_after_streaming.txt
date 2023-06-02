@@ -1,0 +1,49 @@
+Line #    Mem usage    Increment  Occurrences   Line Contents
+=============================================================
+     9    151.8 MiB    151.8 MiB           1   @profile
+    10                                         def fetch_NY_Data(year:int,writeobj:object,database_write=True):
+    11    151.8 MiB      0.0 MiB           1       url =  f"https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{year}-01.parquet"
+    12
+    13    153.2 MiB      1.4 MiB           1       response = requests.get(url, stream=True,verify = False) #verify = False to get around self signed certificate error, need to see how at self signed certificates to trusted certificates
+    14    153.2 MiB      0.0 MiB           1       chunks = []
+    15
+    16                                             # Process the response content in chunks
+    17    199.3 MiB     46.1 MiB       11641       for chunk in response.iter_content(chunk_size=4096):
+    18    199.3 MiB      0.0 MiB       11640           if chunk:
+    19    199.3 MiB      0.0 MiB       11640               chunks.append(chunk)
+    20
+    21                                             #create a byte file from the chunks
+    22    245.0 MiB     45.6 MiB           1       parquet_content = b"".join(chunks)
+    23                                             #converting the byte file to a file like object
+    24    245.0 MiB      0.0 MiB           1       parquet_buffer = io.BytesIO(parquet_content)
+    25    245.0 MiB      0.0 MiB           1       parent_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir,'data'))
+    26
+    27                                             #Direct reading of parquet file using read_parquet_file leads to high memory consumption as observed from docker-stats
+    28                                             #df = pd.read_parquet(parquet_file)
+    29
+    30                                             #Set up the file pointer to Parquet object
+    31    245.0 MiB      0.0 MiB           1       parquet_file = pq.ParquetFile(parquet_buffer)
+    32    245.0 MiB      0.0 MiB           1       batch_size = 1024 #Experiment for performance
+    33    245.0 MiB      0.0 MiB           1       batches = parquet_file.iter_batches(batch_size) #batches will be a generator
+    34    245.0 MiB      0.0 MiB           1       file_name = None
+    35
+    36    245.0 MiB      0.0 MiB           1       cnt= 0
+    37    455.6 MiB  -2753.6 MiB        2996       for batch in batches:
+    38                                                 #need to check if to_pandas is required
+    39    455.6 MiB  -2541.2 MiB        2995           df = batch.to_pandas()
+    40    455.6 MiB  -2744.6 MiB        2995           if database_write:
+    41    455.6 MiB  -2744.6 MiB        2995               try:
+    42    455.6 MiB  -2744.8 MiB        2995                   print (f'cnt is {cnt}' and {df.shape})
+    43    455.5 MiB  -3239.2 MiB        2995                   writeobj.write_data_to_db(df)
+    44                                                     except Exception as e:
+    45                                                         print (f'Error: {e}')
+    46                                                         return e
+    47
+    48                                                 #Construct the file name
+    49    455.5 MiB  -3011.0 MiB        2995           file_name = os.path.join(parent_dir, f"{year}_{cnt}.parquet")
+    50    455.5 MiB  -3011.4 MiB        2995           try:
+    51    455.6 MiB  -2980.0 MiB        2995               writeobj.write_file_to_path(df,file_name)
+    52                                                 except Exception as e:
+    53                                                     print(f"Error writing: {e}")
+    54                                                     return e
+    55    455.6 MiB  -3010.8 MiB        2995           cnt = cnt+1
