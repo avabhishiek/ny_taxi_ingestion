@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  mydb:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${USER}
+      POSTGRES_PASSWORD: ${PASSWORD}
+      POSTGRES_DB: ny_taxi_db
+
+  app:
+    image: compose_image:latest # if you dont specify the image name, docker-compose will assign a name <directory_pat+service_name>                              #on the convention of
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: tail -f /dev/null
+    ports:
+      - 5432:5432
+    #volumes:
+    #  - C:/Users/aadhikarla/DE projects/:/script
+    environment:
+      DB_HOST: mydb # cool thing about compose is we can link containers using service name
+      DB_PORT: 5432 # DONT change port, 5432 is default port for postgreSQL
+      DB_NAME: ny_taxi_db
+      DB_USER: ${USER}
+      DB_PASSWORD: ${PASSWORD}
+  
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - 8080:80
